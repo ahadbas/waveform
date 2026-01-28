@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Waveform – Circular Audio Visualizer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <button id="controls-toggle" class="controls-toggle" aria-label="Toggle controls">
+      <svg class="icon-hamburger" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 12h18M3 6h18M3 18h18"/>
+      </svg>
+      <svg class="icon-close" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M18 6L6 18M6 6l12 12"/>
+      </svg>
+    </button>
+    <main class="app">
+      <section class="visualizer-shell">
+        <canvas id="visualizer"></canvas>
+      </section>
+      <section class="controls-shell" id="controls-panel">
+        <div class="controls">
+          <div class="controls-row">
+            <button id="mic-toggle" class="primary">Start microphone</button>
+            <span id="mic-status" class="status status-idle">Idle</span>
+          </div>
+          <div class="controls-row">
+            <label class="field">
+              <div class="field-label-row">
+                <span class="field-label">Sensitivity</span>
+                <span id="sensitivity-value" class="field-value">7.2</span>
+              </div>
+              <input id="sensitivity" type="range" min="0.5" max="20" value="7.2" step="0.1" />
+            </label>
+          </div>
+          <div class="controls-row">
+            <label class="field">
+              <div class="field-label-row">
+                <span class="field-label">Smoothing</span>
+                <span id="smoothing-value" class="field-value">1.40</span>
+              </div>
+              <input id="smoothing" type="range" min="0" max="3" value="1.4" step="0.01" />
+            </label>
+          </div>
+          <div class="controls-row">
+            <label class="field">
+              <div class="field-label-row">
+                <span class="field-label">Idle Speed</span>
+                <span id="idle-speed-value" class="field-value">5.0</span>
+              </div>
+              <input id="idle-speed" type="range" min="0" max="5" value="5.0" step="0.1" />
+            </label>
+          </div>
+          <div class="controls-row">
+            <label class="field">
+              <div class="field-label-row">
+                <span class="field-label">Radial Scatter</span>
+                <span id="radial-scatter-value" class="field-value">1.0</span>
+              </div>
+              <input id="radial-scatter" type="range" min="0" max="2" value="1.0" step="0.1" />
+            </label>
+          </div>
+          <div class="controls-row">
+            <label class="field">
+              <div class="field-label-row">
+                <span class="field-label">Tangential Scatter</span>
+                <span id="tangential-scatter-value" class="field-value">0.4</span>
+              </div>
+              <input id="tangential-scatter" type="range" min="0" max="2" value="0.4" step="0.1" />
+            </label>
+          </div>
+          <p class="hint">
+            Speak into your microphone or play music nearby. The circular waveform rings will respond to what they hear.
+          </p>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
+

@@ -1,0 +1,9 @@
+{
+  "name": "waveform-visualizer",
+  "version": "0.1.0",
+  "description": "Interactive circular waveform visualizer that responds to microphone input.",
+  "scripts": {
+    "start": "npx serve ."
+  }
+}
+
