@@ -14,14 +14,15 @@ export function createVisualizer(canvas) {
   let tangentialScatterMultiplier = 0.4; // Multiplier for tangential scatter (0 = no angle, 2 = 2x angle)
 
   // Smooth, persistent state for the scatter ring to avoid frame-to-frame jitter.
-  // Reduce segments on mobile for better performance
-  const segments = isMobile ? 100 : 140;
+  // Aggressively reduce segments and dots on mobile for better performance
+  const segments = isMobile ? 70 : 140;
+  const dotsPerLine = isMobile ? 12 : 20;
   const scatterState = {
     // Fewer segments = more spacing between lines/spokes.
     segments: segments,
     lineAmplitude: new Float32Array(segments),
     // Idle animation state for dots (per line, per dot)
-    idleDotOffsets: new Float32Array(segments * 20), // lines * 20 dots
+    idleDotOffsets: new Float32Array(segments * dotsPerLine), // lines * dots
     idleAnimationTime: 0,
     // Smooth transition factor between idle and audio states (0 = fully idle, 1 = fully audio)
     audioPresence: 0,
@@ -29,6 +30,8 @@ export function createVisualizer(canvas) {
     smoothedGlowRadius: 0,
     // Track last frame time for delta-based animation
     lastFrameTime: performance.now(),
+    // Frame skipping for mobile performance
+    frameSkip: 0,
   };
 
   function setAudioSource(source) {
@@ -69,7 +72,9 @@ export function createVisualizer(canvas) {
 
   function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+    // Limit device pixel ratio on mobile for better performance
+    const maxDPR = isMobile ? 1.5 : 2;
+    const dpr = Math.min(window.devicePixelRatio || 1, maxDPR);
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -77,6 +82,16 @@ export function createVisualizer(canvas) {
 
   function loop() {
     if (!running) return;
+    
+    // Skip frames on mobile for better performance (render every other frame)
+    if (isMobile) {
+      scatterState.frameSkip++;
+      if (scatterState.frameSkip % 2 === 0) {
+        requestAnimationFrame(loop);
+        return;
+      }
+    }
+    
     drawFrame();
     requestAnimationFrame(loop);
   }
@@ -136,13 +151,20 @@ export function createVisualizer(canvas) {
     const innerRadius = radius * 0.1; // Much smaller inner radius for smoother falloff
     const gradient = ctx.createRadialGradient(cx, cy, innerRadius, cx, cy, glowRadius);
     
-    // White gradient with smooth falloff using multiple color stops
-    gradient.addColorStop(0, "rgba(255, 255, 255, 0.15)");
-    gradient.addColorStop(0.2, "rgba(255, 255, 255, 0.12)");
-    gradient.addColorStop(0.4, "rgba(255, 255, 255, 0.08)");
-    gradient.addColorStop(0.6, "rgba(255, 255, 255, 0.04)");
-    gradient.addColorStop(0.8, "rgba(255, 255, 255, 0.02)");
-    gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    // Use simpler gradient on mobile for better performance
+    if (isMobile) {
+      gradient.addColorStop(0, "rgba(255, 255, 255, 0.15)");
+      gradient.addColorStop(0.5, "rgba(255, 255, 255, 0.05)");
+      gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    } else {
+      // White gradient with smooth falloff using multiple color stops
+      gradient.addColorStop(0, "rgba(255, 255, 255, 0.15)");
+      gradient.addColorStop(0.2, "rgba(255, 255, 255, 0.12)");
+      gradient.addColorStop(0.4, "rgba(255, 255, 255, 0.08)");
+      gradient.addColorStop(0.6, "rgba(255, 255, 255, 0.04)");
+      gradient.addColorStop(0.8, "rgba(255, 255, 255, 0.02)");
+      gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    }
 
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
@@ -248,7 +270,7 @@ export function createVisualizer(canvas) {
       // ctx.stroke();
 
       // Dots along each line that "scatter" with the line, but remain smooth/deterministic.
-      const dotCount = 20; // 20 dots per line
+      const dotCount = dotsPerLine; // Reduced on mobile for performance
       const nx = Math.cos(angle);
       const ny = Math.sin(angle);
       const tx = -ny;
@@ -313,10 +335,20 @@ export function createVisualizer(canvas) {
         const sizeVariation = (amp01 * 2.2 + loudness * 1.8) * audioPresence * mobileSizeBoost;
         const size = baseSize + sizeVariation;
 
-        const grad = ctx.createRadialGradient(px, py, 0, px, py, size * 2.8);
-        grad.addColorStop(0, "rgba(255, 255, 255, 0.78)");
-        grad.addColorStop(0.35, "rgba(184, 214, 255, 0.55)");
-        grad.addColorStop(1, "rgba(77, 123, 255, 0)");
+        // Use simpler gradients on mobile for better performance
+        let grad;
+        if (isMobile) {
+          // Simpler 2-stop gradient on mobile
+          grad = ctx.createRadialGradient(px, py, 0, px, py, size * 2.8);
+          grad.addColorStop(0, "rgba(255, 255, 255, 0.85)");
+          grad.addColorStop(1, "rgba(255, 255, 255, 0)");
+        } else {
+          // Full gradient on desktop
+          grad = ctx.createRadialGradient(px, py, 0, px, py, size * 2.8);
+          grad.addColorStop(0, "rgba(255, 255, 255, 0.78)");
+          grad.addColorStop(0.35, "rgba(184, 214, 255, 0.55)");
+          grad.addColorStop(1, "rgba(77, 123, 255, 0)");
+        }
 
         ctx.fillStyle = grad;
         ctx.beginPath();
