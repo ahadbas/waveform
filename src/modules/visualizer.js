@@ -1,6 +1,10 @@
 export function createVisualizer(canvas) {
   const ctx = canvas.getContext("2d");
 
+  // Detect mobile device for optimizations
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                   (window.innerWidth <= 768);
+
   let audioSource = null;
   let running = false;
   let sensitivity = 7.2;
@@ -10,12 +14,14 @@ export function createVisualizer(canvas) {
   let tangentialScatterMultiplier = 0.4; // Multiplier for tangential scatter (0 = no angle, 2 = 2x angle)
 
   // Smooth, persistent state for the scatter ring to avoid frame-to-frame jitter.
+  // Reduce segments on mobile for better performance
+  const segments = isMobile ? 100 : 140;
   const scatterState = {
     // Fewer segments = more spacing between lines/spokes.
-    segments: 140,
-    lineAmplitude: new Float32Array(140),
+    segments: segments,
+    lineAmplitude: new Float32Array(segments),
     // Idle animation state for dots (per line, per dot)
-    idleDotOffsets: new Float32Array(140 * 20), // 140 lines * 20 dots
+    idleDotOffsets: new Float32Array(segments * 20), // lines * 20 dots
     idleAnimationTime: 0,
     // Smooth transition factor between idle and audio states (0 = fully idle, 1 = fully audio)
     audioPresence: 0,
@@ -83,9 +89,9 @@ export function createVisualizer(canvas) {
 
     const cx = width / 2;
     const cy = height / 2;
-    // Visualizer diameter is 25% of longest viewport edge (50% smaller than before)
+    // Visualizer diameter: larger on mobile for better visibility
     const longestEdge = Math.max(width, height);
-    const visualizerDiameter = longestEdge * 0.25;
+    const visualizerDiameter = isMobile ? longestEdge * 0.4 : longestEdge * 0.25;
     const baseRadius = visualizerDiameter * 0.35;
 
     const features = audioSource ? audioSource.getFeatures() : null;
@@ -155,8 +161,9 @@ export function createVisualizer(canvas) {
     
     // Smoothly transition audio presence factor (organic transition, not instant)
     // Use different speeds for entering vs exiting audio state for more natural feel
-    const enterSpeed = 0.08; // Faster when audio starts
-    const exitSpeed = 0.04; // Slower when audio stops (lingers a bit)
+    // Faster transitions on mobile for more responsive feel
+    const enterSpeed = isMobile ? 0.15 : 0.08; // Faster when audio starts
+    const exitSpeed = isMobile ? 0.08 : 0.04; // Slower when audio stops (lingers a bit)
     const targetPresence = hasAudioRaw ? 1.0 : 0.0;
     const transitionSpeed = targetPresence > scatterState.audioPresence ? enterSpeed : exitSpeed;
     scatterState.audioPresence = lerp(scatterState.audioPresence, targetPresence, transitionSpeed);
@@ -171,7 +178,9 @@ export function createVisualizer(canvas) {
     // Temporal smoothing: ease current amplitudes toward target amplitudes.
     // Smoothing slider: 0 = snappy (0.3), 1 = very smooth (0.05), 3 = extremely smooth (0.01)
     // Normalize smoothing value to 0-1 range for lerp
-    const normalizedSmoothing = clamp(smoothing / 3, 0, 1);
+    // Less smoothing on mobile for snappier response
+    const mobileSmoothingReduction = isMobile ? 0.7 : 1.0;
+    const normalizedSmoothing = clamp(smoothing / 3, 0, 1) * mobileSmoothingReduction;
     const baseEase = lerp(0.3, 0.01, normalizedSmoothing);
     const ease = clamp(baseEase + loudness * 0.15, 0.03, 0.35);
 
@@ -238,9 +247,11 @@ export function createVisualizer(canvas) {
       // Radial scatter: dots move up/down the fixed axis based on audio
       // Tangential scatter: dots angle away from axis when audio is detected
       // Smoothly blend scatter amounts based on audio presence
+      // Increase scatter on mobile for better visibility
+      const mobileScatterBoost = isMobile ? 1.4 : 1.0;
       const amp01 = clamp(Math.abs(lineAmplitude[i]) / (maxAmplitude || 1), 0, 1);
-      const radialScatterBase = clamp(1.5 + amp01 * 8 + loudness * 12, 1.5, 15);
-      const tangentialScatterBase = clamp(2.0 + amp01 * 10 + loudness * 16, 2, 18);
+      const radialScatterBase = clamp(1.5 + amp01 * 8 + loudness * 12, 1.5, 15) * mobileScatterBoost;
+      const tangentialScatterBase = clamp(2.0 + amp01 * 10 + loudness * 16, 2, 18) * mobileScatterBoost;
       const radialScatterAmount = radialScatterBase * audioPresence * radialScatterMultiplier;
       const tangentialScatterAmount = tangentialScatterBase * audioPresence * tangentialScatterMultiplier;
 
@@ -281,10 +292,12 @@ export function createVisualizer(canvas) {
         const py = lerp(y0, y1, u) + ny * radialScatter + ty * tangentialScatter;
 
         // Smoothly blend dot size between idle and audio states
-        const baseSizeIdle = 1.2;
-        const baseSizeAudio = 0.8;
+        // Larger dots on mobile for better visibility
+        const mobileSizeBoost = isMobile ? 1.3 : 1.0;
+        const baseSizeIdle = 1.2 * mobileSizeBoost;
+        const baseSizeAudio = 0.8 * mobileSizeBoost;
         const baseSize = lerp(baseSizeIdle, baseSizeAudio, audioPresence);
-        const sizeVariation = (amp01 * 2.2 + loudness * 1.8) * audioPresence;
+        const sizeVariation = (amp01 * 2.2 + loudness * 1.8) * audioPresence * mobileSizeBoost;
         const size = baseSize + sizeVariation;
 
         const grad = ctx.createRadialGradient(px, py, 0, px, py, size * 2.8);
