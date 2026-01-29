@@ -22,8 +22,10 @@ export function createAudioManager() {
     source = audioContext.createMediaStreamSource(mediaStream);
     analyser = audioContext.createAnalyser();
     analyser.fftSize = fftSize;
-    // Higher = smoother but less snappy
-    analyser.smoothingTimeConstant = 0.9;
+    // Lower smoothing on mobile for more responsive feel
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                     (window.innerWidth <= 768);
+    analyser.smoothingTimeConstant = isMobile ? 0.7 : 0.9;
 
     source.connect(analyser);
   }

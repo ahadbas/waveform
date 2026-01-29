@@ -27,6 +27,8 @@ export function createVisualizer(canvas) {
     audioPresence: 0,
     // Smoothed glow radius for organic motion
     smoothedGlowRadius: 0,
+    // Track last frame time for delta-based animation
+    lastFrameTime: performance.now(),
   };
 
   function setAudioSource(source) {
@@ -97,8 +99,13 @@ export function createVisualizer(canvas) {
     const features = audioSource ? audioSource.getFeatures() : null;
     const loudness = features?.loudness || 0;
 
-    // Update idle animation time (slow animation: ~2 second cycle)
-    scatterState.idleAnimationTime += 0.016; // ~60fps assumption, adjust if needed
+    // Update idle animation time using delta time for consistent speed across frame rates
+    const now = performance.now();
+    const deltaTime = (now - scatterState.lastFrameTime) / 1000; // Convert to seconds
+    scatterState.lastFrameTime = now;
+    // Scale animation speed - faster on mobile for more fluid feel
+    const animationSpeed = isMobile ? 1.5 : 1.0;
+    scatterState.idleAnimationTime += deltaTime * animationSpeed;
 
     // Initialize smoothed glow radius on first frame
     if (scatterState.smoothedGlowRadius === 0) {
@@ -155,9 +162,11 @@ export function createVisualizer(canvas) {
     const timeLength = time ? time.length : 0;
 
     // Detect if there's meaningful audio input (threshold for "quiet" state)
-    const audioThreshold = 0.02; // Adjust this to tune sensitivity of detection
+    // Lower threshold on mobile for better sensitivity
+    const audioThreshold = isMobile ? 0.01 : 0.02;
+    const timeVariationThreshold = isMobile ? 0.03 : 0.05;
     const hasAudioRaw = loudness > audioThreshold || (time && timeLength > 0 && 
-      Array.from(time).some(s => Math.abs(s / 255 - 0.5) > 0.05));
+      Array.from(time).some(s => Math.abs(s / 255 - 0.5) > timeVariationThreshold));
     
     // Smoothly transition audio presence factor (organic transition, not instant)
     // Use different speeds for entering vs exiting audio state for more natural feel
@@ -206,7 +215,9 @@ export function createVisualizer(canvas) {
 
       const mapped = (sample - 0.5) * 2;
       // Smoothly transition target amplitude based on audio presence
-      const target = mapped * sensitivity * maxAmplitude * audioPresence;
+      // Boost sensitivity on mobile for better response
+      const mobileSensitivityBoost = isMobile ? 1.3 : 1.0;
+      const target = mapped * sensitivity * maxAmplitude * audioPresence * mobileSensitivityBoost;
       lineAmplitude[i] = lerp(lineAmplitude[i], target, ease);
 
       // Smoothly blend between uniform and varied line lengths
@@ -275,8 +286,10 @@ export function createVisualizer(canvas) {
 
         // Idle animation: slow random movement up/down the radial axis
         // Always calculate idle animation, but blend it with audio-driven movement
+        // Faster base speeds on mobile for more fluid animation
         const phase = hash01(i * 137.5 + d * 23.7) * Math.PI * 2;
-        const baseSpeed = 0.3 + hash01(i * 67.3 + d * 41.9) * 0.4; // 0.3 to 0.7 speed variation
+        const baseSpeedRange = isMobile ? [0.5, 1.0] : [0.3, 0.7]; // Faster on mobile
+        const baseSpeed = baseSpeedRange[0] + hash01(i * 67.3 + d * 41.9) * (baseSpeedRange[1] - baseSpeedRange[0]);
         const speed = baseSpeed * idleSpeed; // Apply idle speed multiplier
         const amplitude = 2.5 + hash01(i * 89.1 + d * 19.3) * 3.5; // 2.5 to 6.0 pixel variation
         const idleRadialOffset = Math.sin(scatterState.idleAnimationTime * speed + phase) * amplitude;
